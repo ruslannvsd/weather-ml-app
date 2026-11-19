@@ -6,7 +6,7 @@ class TestUnit(unittest.TestCase):
 	def setUp(self):
 		app.testing = True
 		self.client = app.test_client()
-	
+
 	# Complete this function to test proper handling of missing input field in the input
 	def test_post_missing_field(self):
 		form_data = {
@@ -21,30 +21,37 @@ class TestUnit(unittest.TestCase):
 			'clouds': '9'
 		}
 		response = self.client.post('/', data=form_data)
+		html = response.get_data(as_text=True)
+		self.assertIn('Error processing input:', html, 'Missing wind speed should display an error')
+		self.assertIn('<form', html, 'The input form should be shown again')
+		self.assertNotIn('Prediction Result', html, 'Incomplete input should not show a prediction')
 
 	# Complete this function to test that the model can be loaded correctly
 	def test_model_can_be_loaded(self):
 		model = load_model()
-		
+		self.assertIsNotNone(model, 'Expected the trained model to load')
+		self.assertTrue(callable(getattr(model, 'predict', None)), 'Loaded model should support predict')
 
 	# Test model classification is within the 9 classes, each time for a different class with three different inputs
 	def test_clear_classification_output(self):
 		test_input = np.array([269.686,1002,78,0,23,0,0,0,0]).reshape(1,-1)
-		class_result, _ = classify_weather(test_input) 
+		class_result, _ = classify_weather(test_input)
 		# Ensure that 'clear' class is returned
-		
+		self.assertEqual(class_result, 'clear', 'Expected clear for the supplied clear-weather input')
+
 	def test_rainy_classification_output(self):
 		test_input = np.array([279.626,998,99,1,314,0.3,0,0,88]).reshape(1,-1)
-		class_result, _ = classify_weather(test_input) 
+		class_result, _ = classify_weather(test_input)
 		# Ensure that 'rainy' class is returned
-		
+		self.assertEqual(class_result, 'rainy', 'Expected rainy for the supplied rainy-weather input')
 
 	def test_foggy_classification_output(self):
 
 		test_input = np.array([289.47,1015,88,2,300,0,0,0,20]).reshape(1,-1)
-		class_result, _ = classify_weather(test_input) 
+		class_result, _ = classify_weather(test_input)
 
 		# Ensure that 'foggy' class is returned
-		
+		self.assertEqual(class_result, 'foggy', 'Expected foggy for the supplied foggy-weather input')
+
 if __name__ == '__main__':
 	unittest.main()
