@@ -1,0 +1,33 @@
+name: Rehearse CW2 Operations on disposable Ubuntu
+on:
+  push:
+    branches: [ops/rehearse-task-3]
+permissions:
+  contents: read
+jobs:
+  rehearsal:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install Ansible
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ansible
+      - name: Provision Minikube and deploy the published image
+        run: ansible-playbook -i localhost, ops/production.yml
+      - name: Run the same playbook again and check idempotence
+        run: |
+          set -o pipefail
+          ansible-playbook -i localhost, ops/production.yml | tee "$RUNNER_TEMP/second-run.log"
+          grep -E '^localhost +: .*changed=0 +unreachable=0 +failed=0' "$RUNNER_TEMP/second-run.log"
+      - name: Confirm ready replicas and exercise a rolling restart
+        run: |
+          set -eu
+          kubectl --context=minikube get deploy,pods,svc -o wide
+          test "$(kubectl --context=minikube get deployment weather-ml-app -o jsonpath='{.status.readyReplicas}')" = 2
+          kubectl --context=minikube rollout restart deployment/weather-ml-app
+          kubectl --context=minikube rollout status deployment/weather-ml-app --timeout=5m
+          curl -fsS "http://$(sg docker -c 'minikube ip -p minikube'):30080/" | grep 'name="temperature"'
