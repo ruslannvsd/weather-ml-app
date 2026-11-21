@@ -1,0 +1,120 @@
+---
+- name: Prepare the CW2 production server and deploy the weather app
+  hosts: localhost
+  connection: local
+  vars:
+    minikube_version: v1.39.0
+    kubernetes_version: v1.37.0
+    kubectl_version: v1.37.2
+    kubectl_url: "https://dl.k8s.io/release/{{ kubectl_version }}/bin/linux/amd64/kubectl"
+    minikube_url: "https://github.com/kubernetes/minikube/releases/download/{{ minikube_version }}/minikube-linux-amd64"
+
+  tasks:
+    - name: Check the target is an x86-64 Ubuntu server with a non-root login
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.distribution == 'Ubuntu'
+          - ansible_facts.architecture == 'x86_64'
+          - ansible_facts.user_uid != 0
+        fail_msg: Run this playbook on the Ubuntu production VM as its regular sudo user.
+
+    - name: Check for an existing Docker Engine service
+      ansible.builtin.service_facts:
+
+    - name: Install Docker Engine when missing
+      become: true
+      ansible.builtin.apt:
+        name: docker.io
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+      when: "'docker.service' not in ansible_facts.services"
+
+    - name: Enable and start Docker
+      become: true
+      ansible.builtin.systemd:
+        name: docker
+        enabled: true
+        state: started
+
+    - name: Allow the login user to run Minikube with the Docker driver
+      become: true
+      ansible.builtin.user:
+        name: "{{ ansible_facts.user_id }}"
+        groups: docker
+        append: true
+
+    - name: Install kubectl and Minikube using their published checksums
+      become: true
+      ansible.builtin.get_url:
+        url: "{{ item.url }}"
+        dest: "/usr/local/bin/{{ item.name }}"
+        checksum: "sha256:{{ item.checksum }}"
+        mode: "0755"
+      loop:
+        - name: kubectl
+          url: "{{ kubectl_url }}"
+          checksum: "{{ kubectl_url }}.sha256"
+        - name: minikube
+          url: "{{ minikube_url }}"
+          checksum: "{{ minikube_url }}.sha256"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Check the Minikube profile
+      ansible.builtin.command: sg docker -c '/usr/local/bin/minikube status -p minikube'
+      register: cluster_status
+      changed_when: false
+      failed_when: false
+
+    - name: Start Minikube as the login user with its new Docker group
+      ansible.builtin.command:
+        argv:
+          - sg
+          - docker
+          - -c
+          - >-
+            /usr/local/bin/minikube start -p minikube --driver=docker
+            --cpus=2 --memory=3072 --kubernetes-version={{ kubernetes_version | quote }}
+      when: cluster_status.rc != 0
+
+    - name: Apply the Deployment and NodePort Service to the minikube context
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/kubectl
+          - --context=minikube
+          - --namespace=default
+          - apply
+          - -f
+          - "{{ playbook_dir }}/../k8s/"
+      register: apply_result
+      changed_when: "' created' in apply_result.stdout or ' configured' in apply_result.stdout"
+
+    - name: Wait for the Deployment to finish rolling out
+      ansible.builtin.command: >-
+        /usr/local/bin/kubectl --context=minikube -n default
+        rollout status deployment/weather-ml-app --timeout=5m
+      changed_when: false
+
+    - name: Read the Minikube node address
+      ansible.builtin.command: sg docker -c '/usr/local/bin/minikube ip -p minikube'
+      register: node_ip
+      changed_when: false
+
+    - name: Read the service port from Kubernetes
+      ansible.builtin.command: >-
+        /usr/local/bin/kubectl --context=minikube -n default get service weather-ml-app
+        -o jsonpath={.spec.ports[0].nodePort}
+      register: node_port
+      changed_when: false
+
+    - name: Confirm that the NodePort serves the weather form
+      ansible.builtin.uri:
+        url: "http://{{ node_ip.stdout | trim }}:{{ node_port.stdout | trim }}/"
+        use_proxy: false
+        return_content: true
+        status_code: 200
+      register: page
+      until: page.status == 200 and 'name="temperature"' in (page.content | default(''))
+      retries: 12
+      delay: 5
