@@ -1,0 +1,27 @@
+# CI.yml - Continuous Integration for weather-ml-app (CW2 Tasks 4(a) to 4(f))
+
+name: CI
+
+# 4(a) Detect changes to the GitHub repository
+on:
+  push:
+    branches: [main, bugfix]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}          # "Run workflow" button in the Actions tab
+
+jobs:
+  build-test-push:
+    name: Test, build and push image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show what triggered this run
+        run: |
+          echo "Event:  ${{ github.event_name }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          ls -la
