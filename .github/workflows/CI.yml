@@ -13,7 +13,7 @@ on:
 jobs:
   build-test-push:
     name: Test, build and push image
-        runs-on: ubuntu-24.04      # Python 3.9 is not built for Ubuntu 26.04 (ubuntu-latest)
+    runs-on: ubuntu-24.04      # Python 3.9 is not built for Ubuntu 26.04 (ubuntu-latest)
 
     steps:
       - name: Check out repository
