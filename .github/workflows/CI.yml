@@ -17,11 +17,20 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Show what triggered this run
+      # Same Python as the Dockerfile (python:3.9-slim). model/model.pkl was
+      # saved with scikit-learn 1.6.1, the last release that supports Python 3.9.
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.9"
+          cache: pip
+
+      # 4(b) Install Flask and the dependencies in requirements.txt
+      - name: Install Flask and dependencies
         run: |
-          echo "Event:  ${{ github.event_name }}"
-          echo "Branch: ${{ github.ref_name }}"
-          echo "Commit: ${{ github.sha }}"
-          ls -la
+          python -m pip install --upgrade pip
+          pip install flask
+          pip install -r requirements.txt
+          pip list
