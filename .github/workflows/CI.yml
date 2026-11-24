@@ -34,3 +34,14 @@ jobs:
           pip install flask
           pip install -r requirements.txt
           pip list
+          
+      # 4(c) Run each test file in its own step, in order.
+      # "python -m unittest" runs from the repo root so "from app import app" works.
+      - name: Smoke test
+        run: python -m unittest -v tests/smoke_test.py
+
+      - name: Unit test
+        run: python -m unittest -v tests/unit_test.py
+
+      - name: Integration test
+        run: python -m unittest -v tests/integration_test.py
