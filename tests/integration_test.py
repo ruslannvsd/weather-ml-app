@@ -1,6 +1,6 @@
 import re
 import unittest
-from app import app  # Import your Flask app instance
+from app import app, weather_classes  # Import your Flask app instance
 
 class TestModelAppIntegration(unittest.TestCase):
 
@@ -33,10 +33,8 @@ class TestModelAppIntegration(unittest.TestCase):
 			html_text, r'prediction time:</strong>\s*\d+(?:\.\d+)?\s*ms',
 			'Result page should show a numeric prediction time in milliseconds',
 		)
-		valid_classes = [
-			'clear', 'cloudy', 'drizzly', 'foggy', 'hazey',
-			'misty', 'rainy', 'smokey', 'thunderstorm'
-		]
+		# Use the app's own class list so renamed classes still pass
+		valid_classes = weather_classes
 		self.assertIn(
 			prediction.group(1).strip(), valid_classes,
 			'Displayed prediction should be one of the supported weather classes',
