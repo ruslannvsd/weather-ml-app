@@ -61,3 +61,15 @@ jobs:
           docker ps
           docker exec buildtest python -c "import flask; print('Container is running')"
           docker rm -f buildtest
+
+      # 4(f) Push the image to DockerHub (not on pull requests, so unmerged code is never published)
+      - name: Log in to DockerHub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push image to DockerHub
+        if: github.event_name != 'pull_request'
+        run: docker push $IMAGE
