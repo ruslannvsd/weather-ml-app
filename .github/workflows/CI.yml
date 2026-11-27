@@ -3,7 +3,7 @@
 name: CI
 
 env:
-  IMAGE: katerynas82/weather-ml-app:v1
+  IMAGE: katerynas82/weather-ml-app:v2
 
 # 4(a) Detect changes to the GitHub repository
 on:
