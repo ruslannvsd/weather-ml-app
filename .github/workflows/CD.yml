@@ -1,0 +1,41 @@
+# CD.yml - Continuous Deployment for weather-ml-app (CW2 Task 4(g))
+
+name: CD
+
+# Deploy only after successful CI from a push to this repository's main branch.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy to Kubernetes
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    permissions:
+      contents: read
+    runs-on: self-hosted      # GitHub runner installed on the Production Server
+
+    steps:
+      # Check out the same commit that CI tested, so the k8s files match the pushed image
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      # 4(g) Deploy with the yml files. The Deployment uses a rolling update
+      # (maxUnavailable: 0), so old pods keep serving until new ones are ready.
+      - name: Apply the Deployment and Service
+        run: kubectl --context=minikube -n default apply -f k8s/
+
+      - name: Wait for the rolling update to finish
+        run: kubectl --context=minikube -n default rollout status deployment/weather-ml-app --timeout=5m
+
+      - name: Show the running pods and Service
+        run: kubectl --context=minikube -n default get deploy,pods,svc -o wide
