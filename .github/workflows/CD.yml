@@ -2,7 +2,7 @@
 
 name: CD
 
-# Run after CI finishes on main. The job below only deploys if CI passed.
+# Deploy only after successful CI from a push to this repository's main branch.
 on:
   workflow_run:
     workflows: [CI]
@@ -12,7 +12,13 @@ on:
 jobs:
   deploy:
     name: Deploy to Kubernetes
-    if: github.event.workflow_run.conclusion == 'success'
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    permissions:
+      contents: read
     runs-on: self-hosted      # GitHub runner installed on the Production Server
 
     steps:
@@ -21,6 +27,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
 
       # 4(g) Deploy with the yml files. The Deployment uses a rolling update
       # (maxUnavailable: 0), so old pods keep serving until new ones are ready.
